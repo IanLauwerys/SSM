@@ -1,0 +1,2 @@
+# SSM
+Solar Scintillation Monitor
