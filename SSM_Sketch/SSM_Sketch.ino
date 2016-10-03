@@ -4,11 +4,10 @@
  *  (Putative V1.1) Copyright (C) Joachim Stehle, info@jahreslauf.de (Mode 2 output, Firecapture Addin compatibility, LCD output)
  *  V1.2 Copyright (C) 2016 Ian Lauwerys, http://www.blackwaterskies.co.uk/ (Mode 3 output, OLED output, refactoring)
  *  
- *  Unfortunately due to the lack of license information in 
- *  
- *  V1.0 - Vanilla version
- *  V1.1 - Firecapture and LCD shield output
- *  V1.2 - Refactored and improved code, OLED output
+ *  Changelog:
+ *    V1.0 - Vanilla version
+ *    V1.1 - Firecapture addin and LCD shield output
+ *    V1.2 - Refactored code, OLED output
  *  
  *  Features:
  *  - Reads NUM_SAMPLES of analog input readings from ADC1 and ADC2 to find  4.46 * RMS(Intensity_ADC2) / AVERAGE(Intensity_ADC1)   
@@ -17,60 +16,83 @@
  *  - Mode 3: (Not available) Reserved for bidirectional communications including client side configuration changes
  *  
  *  Notes:
- *  - Use with the hardware described in the paper linked above.  
+ *  - Use with the hardware described in the paper linked above
  *  - External Scintillation Monitor circuit gain set to 425.5X
- *  - Adjust intensity value to approximately 1.0 in by changing feedback resistor on U1 substitute a 2K variable resistor for the 220R resistor in the paper linked above.
+ *  - Adjust intensity value to approximately 1.0 in by changing feedback resistor on U1 substitute a 2K variable resistor for the 220R resistor in the paper linked above
  *  - For more information see the following references:
- *  http://www.joachim-stehle.de/sssm_eng.html
- *  http://solarchatforum.com/viewtopic.php?f=9&t=16746
+ *    http://www.joachim-stehle.de/sssm_eng.html
+ *    http://solarchatforum.com/viewtopic.php?f=9&t=16746
  *  
 */
 
-#define SSM_VERSION "V1.2"        // SSM sketch version number
-#define SSM_DATE "02 Oct 2016"   // SSM sketch date
-#define NUM_SAMPLES 2000         // Number of samples used to find the RMS value, default 2000 for about 2 readings per second on 16MHz device, decrease to output more readings per second
-#define ADC1 A0                  // Arduino analog input pin, intensity from LMC6484 pin 14
-#define ADC2 A1                  // Arduino analog input pin, variation from LMC6484 pin 8
-#define CLOUD_DISCRIMINATE false // Discriminate for clouds if true
-#define DISCRIMINATE_LOW 0.5     // Set variation value to zero if intensity is too low, default 0.5
-#define DISCRIMINATE_HIGH 10.0   // Set variation value to zerio if variation is too high, default 10
-#define INTENSITY_OFFSET 0.0     // Intensity dc offset, default 0.0, should not need to change if resistor on U1 can be adjusted to keep value between 0.5V and 1.0V
-#define VARIATION_OFFSET -0.5    // Variation dc offset, default -0.5, may need to adjust to keep variation output the the range > 0.0 and < 10.0
-#define MODE 2                   // Select mode as described in features above, default 2, comment out if serial output not required (e.g. stand-alone device using LED/OLED for output)
-// #define LED_OUTPUT true       // Define this constant to enable LED shield support, otherwise comment it out
-#define OLED_OUTPUT true         // Define this constant to enable OLED module support, otherwise comment it out
-#define WHITE 1                  // For OLED output
-#define BLACK 0                  // For OLED output
+// *************************************** Begin user modifiable defines *************************************
+
+#define NUM_SAMPLES 2000          // Number of samples used to find the RMS value, default 2000 for about 2 readings per second on 16MHz device, decrease to output more readings per second
+
+#define ADC1 A0                   // Arduino analog input pin, intensity from LMC6484 pin 14
+#define ADC2 A1                   // Arduino analog input pin, variation from LMC6484 pin 8
+
+#define CLOUD_DISCRIMINATE false  // Discriminate for clouds if true, default false
+#define DISCRIMINATE_LOW 0.5      // Set variation value to zero if intensity is too low, default 0.5
+#define DISCRIMINATE_HIGH 10.0    // Set variation value to zerio if variation is too high, default 10
+
+#define INTENSITY_OFFSET 0.0      // Intensity dc offset, default 0.0, should not need to change if resistor on U1 can be adjusted to keep value between 0.5V and 1.0V
+#define VARIATION_OFFSET -0.5     // Variation dc offset, default -0.5, may need to adjust to keep variation output the the range > 0.0 and < 10.0
+
+#define MODE 2                    // Select mode as described in features above, default 2, comment out if serial output not required (e.g. stand-alone device using LED/OLED for output)
+#ifdef MODE
+  #define SERIAL_RATE 115200      // Set the serial communications rate (9600 or 115200 are good values to try), default 115200
+#endif
+
+// #define LED_OUTPUT             // Define this constant to enable LED shield support, otherwise comment it out
+
+#define OLED_OUTPUT               // Define this constant to enable OLED module support, otherwise comment it out
+                                  // N.B. You must edit Adafruit_SSD1306.h at comment "SSD1306 Displays" to choose a display size
+                                  // SSD1306_LCDWIDTH and SSD1306_LCDHeight will then be defined by the .h with display size
+                                  // W x H options are: 128 x 64 | 128 x 32 | 96 x 16
+#ifdef OLED_OUTPUT
+  // #define SOFTWARE_SPI         // Define this constant if your OLED module is wired to use software SPI
+  #define HARDWARE_SPI            // Define this constant if your OLED module is wired to use hardware SPI
+  #if defined SOFTWARE_SPI && defined HARDWARE_SPI
+    #error "Only one OLED SPI mode can be defined!"
+  #endif 
+  #ifdef SOFTWARE_SPI
+    #define OLED_MOSI   9         // For software SPI only, define digital pin wired to OLED MOSI
+    #define OLED_CLK   10         // For software SPI only, define digital pin wired to OLED CLK (or SLCK)
+  #endif
+  #define OLED_RESET  -1          // For software and hardware SPI, define digital pin wired to OLED RST (not available on my OLED module!)
+  #define OLED_DC     10          // For software and hardware SPI, define digital pin wired to OLED DC (or D/C)
+  #define OLED_CS     21          // For software and hardware SPI, define digital pin wired to OLED CS (21 is A3 on Pro Micro!)
+  // Note that SCLK (Pro Micro pin 15) and MOSI (Pro Micro pin 16) are specific pins in hardware SPI mode so don't need defining
+#endif
+
+// *************************************** End user modifiable defines ***************************************
+
+// *************************************** Begin private defines *********************************************
+
+#define SSM_VERSION "V1.2"      // SSM sketch version number
+#define SSM_DATE "02 Oct 2016"  // SSM sketch date
+#define WHITE 1                 // For OLED output
+#define BLACK 0                 // For OLED output
+
+// *************************************** End private defines ***********************************************
 
 #ifdef LED_OUTPUT
-  include <LiquidCrystal.h>
-  LiquidCrystal lcd(8,9,4,5,6,7);  // Set up LCD shield
+  include <LiquidCrystal.h>             // Library available in standard Arduino IDE
+  LiquidCrystal lcd(8, 9, 4, 5, 6, 7);  // Set up LCD shield
 #endif
 
 #ifdef OLED_OUTPUT
-  #include <SPI.h>
-  #include <Wire.h>
-  #include <Adafruit_GFX.h>
-  #include <Adafruit_SSD1306.h> // You must edit Adafruit_SSD1306.h to choose the appropriate display size for your OLED module
-
-  /*
-  // If using software SPI (the default case) uncomment this block and set pins appropriate to your OLED module:
-  #define OLED_MOSI   9
-  #define OLED_CLK   10
-  #define OLED_DC    11
-  #define OLED_CS    12
-  #define OLED_RESET 13
-  Adafruit_SSD1306 display(OLED_MOSI, OLED_CLK, OLED_DC, OLED_RESET, OLED_CS);
-  // End of software SPI block
-  */
-  
-  // If using hardware SPI, uncomment this block and set pins appropriate to your OLED module
-  // Note that SCLK (Pro Micro pin 15) and MOSI (Pro Micro pin 16) configure themselves in hardware mode:
-  #define OLED_DC     10 // Digital pin 10
-  #define OLED_CS     21 // Digital pin 21, aka A3 on Pro Micro pinout
-  #define OLED_RESET  -1 // RST pin not available on my particular module
-  Adafruit_SSD1306 display(OLED_DC, OLED_RESET, OLED_CS);
-  // End of hardware SPI block
+  #include <SPI.h>              // Library available in standard Arduino IDE
+  #include <Wire.h>             // Library available in standard Arduino IDE
+  #include <Adafruit_GFX.h>     // https://github.com/adafruit/Adafruit-GFX-Library/archive/master.zip
+  #include <Adafruit_SSD1306.h> // https://github.com/adafruit/Adafruit_SSD1306/archive/master.zip
+  #ifdef SOFTWARE_SPI
+    Adafruit_SSD1306 display(OLED_MOSI, OLED_CLK, OLED_DC, OLED_RESET, OLED_CS);
+  #endif
+  #ifdef HARDWARE_SPI
+    Adafruit_SSD1306 display(OLED_DC, OLED_RESET, OLED_CS);
+  #endif
 #endif
 
 void setup()
@@ -96,18 +118,20 @@ void setup()
     display.drawBitmap(0, 0, SSM_LOGO, SSM_LOGO_WIDTH, SSM_LOGO_HEIGHT, 1); // Draw splash screen logo
     display.setTextSize(1);
     display.setTextColor(WHITE);
-    display.setCursor(SSM_LOGO_WIDTH + 4, 0);                               // Draw splash screen sketch version
+    display.setCursor(SSM_LOGO_WIDTH + 6, 0);                               // Draw splash screen sketch version
     display.print(SSM_VERSION);
-    #ifdef MODE
-      display.print(" Mode ");                                              // Draw splash screen mode if applicable
-      display.print(MODE);
+    #if SSD1306_LCDWIDTH > 96
+      #ifdef MODE
+        display.print(" Mode ");                                            // Draw splash screen mode if applicable
+        display.print(MODE);
+      #endif
+      display.setCursor(SSM_LOGO_WIDTH + 6 , 8);                            // Draw splash screen sketch date
+      display.print(SSM_DATE);
     #endif
-    display.setCursor(SSM_LOGO_WIDTH + 4 , 8);                              // Draw splash screen sketch date
-    display.print(SSM_DATE);
     display.display();                                                      // Show splash screen
     delay(2000);
     display.clearDisplay();                                                 // Clear display
-    display.display();                                                    // Show cleared display
+    display.display();                                                      // Show cleared display
   #endif
   
   #ifdef MODE
@@ -172,32 +196,39 @@ void loop()
     display.setCursor(0 , 8);           // Draw intensity value
     display.print("Input:  ");
     display.print(intensityValue, 2);
+    
+    #if SSD1306_LCDWIDTH > 96
+      // FIXME: Draw intensity graph
+    #endif
+    #if SSD1306_LCDHEIGHT > 16
+      // FIXME: Draw variation graph
+    #endif
     display.display();                  // Show results
   #endif
   
   #ifdef MODE // Output to serial port in desired mode
     switch(mode)
     {
-      case 1 :
+      case 1 :  // Basic text output
         Serial.print("Intensity: ");
         Serial.println(intensityValue, 2);
         Serial.print("Variation: ");
         Serial.println(variationValue, 2);
         break;
       
-      case 2 :
+      case 2 :  // Firecapture addin compatible
         Serial.print("A0: ");
         Serial.println(intensityValue, 2);
         Serial.print("A1: ");
         Serial.println(variationValue, 2);
         break;
   
-      case 3 :
+      case 3 :  // FIXME: Bidirectional comms, need to read commands and send data
         Serial.println("Mode 3 not implemented yet!");
         break;
       
-      default : /* Optional */
-        Serial.println("No output mode selected!");
+      default : // Incorrect mode set
+        Serial.println("Invalid output mode selected!");
     }
   #endif
 }
