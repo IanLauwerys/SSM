@@ -49,7 +49,7 @@
 #define OLED_OUTPUT               // Define this constant to enable OLED module support, otherwise comment it out
                                   // N.B. You must edit Adafruit_SSD1306.h at comment "SSD1306 Displays" to choose a display size
                                   // SSD1306_LCDWIDTH and SSD1306_LCDHeight will then be defined by the .h with display size
-                                  // W x H options are: 128 x 64 | 128 x 32 | 96 x 16
+                                  // Current W x H options are: 128 x 64 | 128 x 32 | 96 x 16
 #ifdef OLED_OUTPUT
   // #define SOFTWARE_SPI         // Define this constant if your OLED module is wired to use software SPI
   #define HARDWARE_SPI            // Define this constant if your OLED module is wired to use hardware SPI
@@ -64,6 +64,9 @@
   #define OLED_DC     10          // For software and hardware SPI, define digital pin wired to OLED DC (or D/C)
   #define OLED_CS     21          // For software and hardware SPI, define digital pin wired to OLED CS (21 is A3 on Pro Micro!)
   // Note that SCLK (Pro Micro pin 15) and MOSI (Pro Micro pin 16) are specific pins in hardware SPI mode so don't need defining
+  #define IG_WIDTH 44             // Intensity graph width (pixels), default 44 (sized for 128 pixel wide display), comment out to hide graph
+  #define VG_WIDTH 120            // Variation graph width (pixels), default 120 (sized for 128 pixel wide display), comment out to hide graph
+                                  // N.B. Enabling variation graph requires display to be taller than 16 pixels
 #endif
 
 // *************************************** End user modifiable defines ***************************************
@@ -93,6 +96,14 @@
   #ifdef HARDWARE_SPI
     Adafruit_SSD1306 display(OLED_DC, OLED_RESET, OLED_CS);
   #endif
+  #ifdef IG_WIDTH
+    float intensityBuffer[IG_WIDTH] = { 0.0 };  // Buffer to hold intensity readings
+    int intensityOldest = 0;                    // Current position of oldest (left hand of graph) entry in intensity buffer
+  #endif
+  ifdef VG_WIDTH
+    float variationBuffer[VG_WIDTH] = { 0.0 };  // Buffer to hold variation readings
+    int variationOldest = 0;                    // Current position of oldest (left hand of graph) entry in variation buffer
+  #endif
 #endif
 
 void setup()
@@ -120,7 +131,7 @@ void setup()
     display.setTextColor(WHITE);
     display.setCursor(SSM_LOGO_WIDTH + 6, 0);                               // Draw splash screen sketch version
     display.print(SSM_VERSION);
-    #if SSD1306_LCDWIDTH > 96
+    #if SSD1306_LCDWIDTH = 128
       #ifdef MODE
         display.print(" Mode ");                                            // Draw splash screen mode if applicable
         display.print(MODE);
@@ -175,6 +186,8 @@ void loop()
     variationValue = 0; // Discriminate for clouds by setting variation value to zero
   }
 
+  // http://www.daycounter.com/LabBook/Moving-Average.phtml
+
   #ifdef LED_OUTPUT // Output to LED shield
     lcd.setCursor(0, 1);
     lcd.print("Input:          ");
@@ -197,10 +210,14 @@ void loop()
     display.print("Input:  ");
     display.print(intensityValue, 2);
     
-    #if SSD1306_LCDWIDTH > 96
+    #ifdef IG_WIDTH
+      intensityBuffer[intensityOldest] = intensityValue;  // Buffer current intensity reading
+      intensityOldest = intensityOldest++ % IG_WIDTH;     // Increment left hand of graph, wrap over at end of buffer
       // FIXME: Draw intensity graph
     #endif
-    #if SSD1306_LCDHEIGHT > 16
+    ifdef VG_WIDTH
+      variationBuffer[variationOldest] = variationValue;  // Buffer current variation reading
+      variationOldest = variationOldest++ % VG_WIDTH;     // Increment left hand of graph, wrap over at end of buffer
       // FIXME: Draw variation graph
     #endif
     display.display();                  // Show results
