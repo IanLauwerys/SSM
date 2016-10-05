@@ -18,7 +18,8 @@
  *  Notes:
  *  - Use with the hardware described in the paper linked above
  *  - External Scintillation Monitor circuit gain set to 425.5X
- *  - Adjust intensity value to approximately 1.0 in by changing feedback resistor on U1 substitute a 2K variable resistor for the 220R resistor in the paper linked above
+ *  - Adjust intensity value to approximately 1.0 in by changing feedback resistor on U1
+ *    You should probably substitute a 2K variable resistor for the 220R resistor in the paper linked above to make this easier!
  *  - For more information see the following references:
  *    http://www.joachim-stehle.de/sssm_eng.html
  *    http://solarchatforum.com/viewtopic.php?f=9&t=16746
@@ -33,10 +34,10 @@
 #define ADC2 A1                   // Arduino analog input pin, variation from LMC6484 pin 8
 
 #define CLOUD_DISCRIMINATE false  // Discriminate for clouds if true, default false
-#define DISCRIMINATE_LOW 0.5      // Set variation value to zero if intensity is too low, default 0.5
-#define DISCRIMINATE_HIGH 10.0    // Set variation value to zerio if variation is too high, default 10
+#define DISCRIMINATE_LOW     0.5  // Set variation value to zero if intensity is too low, default 0.5
+#define DISCRIMINATE_HIGH   10.0  // Set variation value to zero if variation is too high, default 10
 
-#define INTENSITY_OFFSET 0.0      // Intensity dc offset, default 0.0, should not need to change if resistor on U1 can be adjusted to keep value between 0.5V and 1.0V
+#define INTENSITY_OFFSET  0.0     // Intensity dc offset, default 0.0, should not need to change if resistor on U1 can be adjusted to keep value between 0.5V and 1.0V
 #define VARIATION_OFFSET -0.5     // Variation dc offset, default -0.5, may need to adjust to keep variation output the the range > 0.0 and < 10.0
 
 #define MODE 2                    // Select mode as described in features above, default 2, comment out if serial output not required (e.g. stand-alone device using LED/OLED for output)
@@ -47,7 +48,7 @@
 // #define LED_OUTPUT             // Define this constant to enable LED shield support, otherwise comment it out
 
 #define OLED_OUTPUT               // Define this constant to enable OLED module support, otherwise comment it out
-                                  // N.B. You must edit Adafruit_SSD1306.h at comment "SSD1306 Displays" to choose a display size
+                                  // *** N.B. You must edit Adafruit_SSD1306.h at comment "SSD1306 Displays" to choose a display size ***
                                   // SSD1306_LCDWIDTH and SSD1306_LCDHeight will then be defined by the .h with display size
                                   // Current W x H options are: 128 x 64 | 128 x 32 | 96 x 16
 #ifdef OLED_OUTPUT
@@ -60,13 +61,13 @@
     #define OLED_MOSI   9         // For software SPI only, define digital pin wired to OLED MOSI
     #define OLED_CLK   10         // For software SPI only, define digital pin wired to OLED CLK (or SLCK)
   #endif
-  #define OLED_RESET  -1          // For software and hardware SPI, define digital pin wired to OLED RST (not available on my OLED module!)
-  #define OLED_DC     10          // For software and hardware SPI, define digital pin wired to OLED DC (or D/C)
-  #define OLED_CS     21          // For software and hardware SPI, define digital pin wired to OLED CS (21 is A3 on Pro Micro!)
+  #define OLED_RESET   -1         // For software and hardware SPI, define digital pin wired to OLED RST (not available on my OLED module!)
+  #define OLED_DC      10         // For software and hardware SPI, define digital pin wired to OLED DC (or D/C)
+  #define OLED_CS      21         // For software and hardware SPI, define digital pin wired to OLED CS (21 is A3 on Pro Micro!)
   // Note that SCLK (Pro Micro pin 15) and MOSI (Pro Micro pin 16) are specific pins in hardware SPI mode so don't need defining
-  #define IG_WIDTH 44             // Intensity graph width (pixels), default 44 (sized for 128 pixel wide display), comment out to hide graph
+  #define IG_WIDTH  44            // Intensity graph width (pixels), default 44 (sized for 128 pixel wide display), comment out to hide graph
   #define VG_WIDTH 120            // Variation graph width (pixels), default 120 (sized for 128 pixel wide display), comment out to hide graph
-                                  // N.B. Enabling variation graph requires display to be taller than 16 pixels
+                                  // N.B. Enabling the variation graph requires display to be taller than 16 pixels
 #endif
 
 // *************************************** End user modifiable defines ***************************************
@@ -91,10 +92,10 @@
   #include <Adafruit_GFX.h>     // https://github.com/adafruit/Adafruit-GFX-Library/archive/master.zip
   #include <Adafruit_SSD1306.h> // https://github.com/adafruit/Adafruit_SSD1306/archive/master.zip
   #ifdef SOFTWARE_SPI
-    Adafruit_SSD1306 display(OLED_MOSI, OLED_CLK, OLED_DC, OLED_RESET, OLED_CS);
+    Adafruit_SSD1306 display(OLED_MOSI, OLED_CLK, OLED_DC, OLED_RESET, OLED_CS);  // Initialise display object
   #endif
   #ifdef HARDWARE_SPI
-    Adafruit_SSD1306 display(OLED_DC, OLED_RESET, OLED_CS);
+    Adafruit_SSD1306 display(OLED_DC, OLED_RESET, OLED_CS);                       // Initialise display object
   #endif
   #ifdef IG_WIDTH
     float intensityBuffer[IG_WIDTH] = { 0.0 };  // Buffer to hold intensity readings
@@ -152,27 +153,34 @@ void setup()
  
 void loop()
 {
+  // FIXME: Define variables used for scale calculations and tracking
   // Note: Assign constants to variables so they may be changed on the fly by client software in mode 3
   int sampleCount,
       numSamples = NUM_SAMPLES  
+      #ifdef OLED_OUTPUT
+        , readingPosition
+      #endif
       #ifdef MODE
-        ,
-        mode = MODE
+        , mode = MODE
       #endif
       ;
-
+  
+  #ifdef OLED_OUTPUT
+    uint16_t xPosition,
+             yPosition;
+  #endif
+  
   float variationValue,
         intensityValue,
         variationOffset = VARIATION_OFFSET,
         intensityOffset = INTENSITY_OFFSET,
         discriminateLow = DISCRIMINATE_LOW,
         discriminateHigh = DISCRIMINATE_HIGH;
-
+  
   boolean cloudDiscriminate = CLOUD_DISCRIMINATE;
   
-  variationValue = intensityValue = 0;
-  
-  for (sampleCount=0; sampleCount < numSamples; sampleCount++) // Collect samples from the SSM
+  variationValue = intensityValue = 0;                           // Reset variation and intensity samples
+  for (sampleCount = 0; sampleCount < numSamples; sampleCount++) // Collect samples from the SSM
   {
     intensityValue = intensityValue + (analogRead(ADC1) - 511.) * 2.5 / 511.;     // Accumulate average solar intensity sample
     variationValue = variationValue + sq((analogRead(ADC2) - 511.) * 2.5 / 511.); // Accumulate RMS variation sample
@@ -185,9 +193,9 @@ void loop()
   {
     variationValue = 0; // Discriminate for clouds by setting variation value to zero
   }
-
+  
   // http://www.daycounter.com/LabBook/Moving-Average.phtml
-
+  
   #ifdef LED_OUTPUT // Output to LED shield
     lcd.setCursor(0, 1);
     lcd.print("Input:          ");
@@ -198,7 +206,7 @@ void loop()
     lcd.setCursor(8, 0);
     lcd.print(variationValue, 2);
   #endif
-
+  
   #ifdef OLED_OUTPUT // Output to OLED module
     display.clearDisplay();             // Clear display
     display.setTextSize(1);
@@ -213,12 +221,93 @@ void loop()
     #ifdef IG_WIDTH
       intensityBuffer[intensityOldest] = intensityValue;  // Buffer current intensity reading
       intensityOldest = intensityOldest++ % IG_WIDTH;     // Increment left hand of graph, wrap over at end of buffer
-      // FIXME: Draw intensity graph
+      // Draw intensity graph axes
+      drawFastHLine(84, 15, 44, WHITE); // X axis
+      drawFastVLine(83, 0, 16, WHITE);  // Y axis
+      drawPixel(82, 0, WHITE);          // Y axis top marker
+      drawPixel(82, 14, WHITE);         // Y axis bottom marker
+      drawFastHLine(78, 0, 2, WHITE);   // } 1 Y-axis label
+      drawFastHLine(78, 3, 3, WHITE);   // }
+      drawFastVLine(78, 2, 2, WHITE);   // }
+      drawFastHLine(78, 12, 3, WHITE);  // } 0 Y-axis label
+      drawFastHLine(78, 15, 3, WHITE);  // }
+      drawFastVLine(78, 13, 2, WHITE);  // }
+      drawFastVLine(80, 13, 2, WHITE);  // }
+      
+      if (intensityValue > 1)
+      {
+        display.setCursor(94, 4);
+        display.print("HIGH");    // Print "HIGH" instead of graph
+      }
+      else if (intensityValue < 0)
+      {
+        display.setCursor(94, 4);
+        display.print("LOW");     // Print "LOW" instead of graph
+      }
+      else
+      {
+        readingPosition = intensityOldest;                  // Start with the oldest intensity reading
+        for (xPosition = 84; xPosition < 127; xPosition++); // Plot intensity readings from left to right of graph
+        {
+          yPosition = max(0, (uint16_t) round(intensityBuffer[readingPosition] * 14)); // } Scale 0..1 intensity reading to 0..14
+          yPosition = min(14, yPosition);                                              // }
+          drawFastVLine(xPosition, yPosition, 14 - yPosition, WHITE);                  // Draw vertical bar
+          intensityPosition = intensityPosition++ % IG_WIDTH; // Move to next reading, wrap over at end of buffer
+        }
+      }
     #endif
-    ifdef VG_WIDTH
-      variationBuffer[variationOldest] = variationValue;  // Buffer current variation reading
-      variationOldest = variationOldest++ % VG_WIDTH;     // Increment left hand of graph, wrap over at end of buffer
-      // FIXME: Draw variation graph
+    
+    #ifdef VG_WIDTH
+      variationBuffer[variationOldest] = variationValue;    // Buffer current variation reading
+      
+      if (variationValue > variationMax)
+      {
+        variationMax = variationValue;                      // Found a new bigger scale for the graph so use it
+        scaleTTL = variationOldest;                         // Reset the scale time to live
+        variationScale = variationMax * 47;                 // Calculate the variation graph scale
+      }
+      else if (scaleTTL = variationOldest)                  // Maximum value used for graph scale has rolled off the left of the graph
+      {
+        variationMax = 0.001 ;                              // Start with a small, non-zero maximum
+        scaleTTL = VG_WIDTH;                                // Reset the scale time to live in case there are no bigger values
+        for (scalePosition = 0; scalePosition < VG_WIDTH; scalePosition++);
+        {
+          if (variationBuffer[scalePosition] > variationMax)
+          {
+            variationMax = variationBuffer[scalePosition];  // Found the new maximum value for graph scale
+            scaleTTL = scalePosition;                       // Reset the scale time to live
+          }
+        }
+        variationScale = variationMax * 47;                 // Calculate the variation graph scale
+      }
+      
+      variationOldest = variationOldest++ % VG_WIDTH;       // Increment left hand of graph, wrap over at end of buffer
+      
+      // Draw intensity graph axes
+      #if SSD1306_LCDHeight = 32
+        drawFastHLine(7, 31, 121, WHITE); // X axis
+        drawFastVLine(7, 16, 15, WHITE);  // Y axis
+        drawPixel(6, 16, WHITE);          // Y axis top marker
+        drawPixel(6, 30, WHITE);          // Y axis bottom marker
+        // FIXME: Print scale labels
+      #endif
+      #if SSD1306_LCDHeight = 64
+        drawFastHLine(7, 63, 121, WHITE); // X axis
+        drawFastVLine(7, 16, 47, WHITE);  // Y axis
+        drawPixel(6, 16, WHITE);          // Y axis top marker
+        drawPixel(6, 62, WHITE);          // Y axis bottom marker
+        // FIXME: Print scale labels
+      #endif
+      
+      // Plot intensity graph
+      readingPosition = variationOldest;                 // Start with the oldest intensity reading
+      for (xPosition = 8; xPosition < 127; xPosition++); // Plot intensity readings from left to right of graph
+      {
+        yPosition = max(0, (uint16_t) round(variationBuffer[readingPosition] / variationScale )); // Scale and bound intensity reading 
+        yPosition = min(47, yPosition) + 16;                                                      // Bound and shift down to the start of the graph
+        drawFastVLine(xPosition, yPosition, 47 - yPosition, WHITE);                               // Draw vertical bar
+        intensityPosition = intensityPosition++ % VG_WIDTH;                                       // Move to next reading, wrap over at end of buffer
+      }
     #endif
     display.display();                  // Show results
   #endif
