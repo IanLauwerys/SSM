@@ -101,7 +101,7 @@
     float intensityBuffer[IG_WIDTH] = { 0.0 };  // Buffer to hold intensity readings
     int intensityOldest = 0;                    // Current position of oldest (left hand of graph) entry in intensity buffer
   #endif
-  ifdef VG_WIDTH
+  #ifdef VG_WIDTH
     float variationBuffer[VG_WIDTH] = { 0.0 };  // Buffer to hold variation readings
     int variationOldest = 0;                    // Current position of oldest (left hand of graph) entry in variation buffer
   #endif
@@ -132,7 +132,7 @@ void setup()
     display.setTextColor(WHITE);
     display.setCursor(SSM_LOGO_WIDTH + 6, 0);                               // Draw splash screen sketch version
     display.print(SSM_VERSION);
-    #if SSD1306_LCDWIDTH = 128
+    #if SSD1306_LCDWIDTH == 128
       #ifdef MODE
         display.print(" Mode ");                                            // Draw splash screen mode if applicable
         display.print(MODE);
@@ -158,7 +158,9 @@ void loop()
   int sampleCount,
       numSamples = NUM_SAMPLES  
       #ifdef OLED_OUTPUT
-        , readingPosition
+        , readingPosition,
+        scalePosition,
+        scaleTTL
       #endif
       #ifdef MODE
         , mode = MODE
@@ -175,7 +177,12 @@ void loop()
         variationOffset = VARIATION_OFFSET,
         intensityOffset = INTENSITY_OFFSET,
         discriminateLow = DISCRIMINATE_LOW,
-        discriminateHigh = DISCRIMINATE_HIGH;
+        discriminateHigh = DISCRIMINATE_HIGH
+        #ifdef OLED_OUTPUT
+          , variationMax,
+          variationScale
+        #endif
+        ;
   
   boolean cloudDiscriminate = CLOUD_DISCRIMINATE;
   
@@ -222,17 +229,17 @@ void loop()
       intensityBuffer[intensityOldest] = intensityValue;  // Buffer current intensity reading
       intensityOldest = intensityOldest++ % IG_WIDTH;     // Increment left hand of graph, wrap over at end of buffer
       // Draw intensity graph axes
-      drawFastHLine(84, 15, 44, WHITE); // X axis
-      drawFastVLine(83, 0, 16, WHITE);  // Y axis
-      drawPixel(82, 0, WHITE);          // Y axis top marker
-      drawPixel(82, 14, WHITE);         // Y axis bottom marker
-      drawFastHLine(78, 0, 2, WHITE);   // } 1 Y-axis label
-      drawFastHLine(78, 3, 3, WHITE);   // }
-      drawFastVLine(78, 2, 2, WHITE);   // }
-      drawFastHLine(78, 12, 3, WHITE);  // } 0 Y-axis label
-      drawFastHLine(78, 15, 3, WHITE);  // }
-      drawFastVLine(78, 13, 2, WHITE);  // }
-      drawFastVLine(80, 13, 2, WHITE);  // }
+      display.drawFastHLine(84, 15, 44, WHITE); // X axis
+      display.drawFastVLine(83, 0, 16, WHITE);  // Y axis
+      display.drawPixel(82, 0, WHITE);          // Y axis top marker
+      display.drawPixel(82, 14, WHITE);         // Y axis bottom marker
+      display.drawFastHLine(78, 0, 2, WHITE);   // } 1 Y-axis label
+      display.drawFastHLine(78, 3, 3, WHITE);   // }
+      display.drawFastVLine(78, 2, 2, WHITE);   // }
+      display.drawFastHLine(78, 12, 3, WHITE);  // } 0 Y-axis label
+      display.drawFastHLine(78, 15, 3, WHITE);  // }
+      display.drawFastVLine(78, 13, 2, WHITE);  // }
+      display.drawFastVLine(80, 13, 2, WHITE);  // }
       
       if (intensityValue > 1)
       {
@@ -251,8 +258,8 @@ void loop()
         {
           yPosition = max(0, (uint16_t) round(intensityBuffer[readingPosition] * 14)); // } Scale 0..1 intensity reading to 0..14
           yPosition = min(14, yPosition);                                              // }
-          drawFastVLine(xPosition, yPosition, 14 - yPosition, WHITE);                  // Draw vertical bar
-          intensityPosition = intensityPosition++ % IG_WIDTH; // Move to next reading, wrap over at end of buffer
+          display.drawFastVLine(xPosition, yPosition, 14 - yPosition, WHITE);                  // Draw vertical bar
+          readingPosition = readingPosition++ % IG_WIDTH; // Move to next reading, wrap over at end of buffer
         }
       }
     #endif
@@ -284,18 +291,18 @@ void loop()
       variationOldest = variationOldest++ % VG_WIDTH;       // Increment left hand of graph, wrap over at end of buffer
       
       // Draw intensity graph axes
-      #if SSD1306_LCDHeight = 32
-        drawFastHLine(7, 31, 121, WHITE); // X axis
-        drawFastVLine(7, 16, 15, WHITE);  // Y axis
-        drawPixel(6, 16, WHITE);          // Y axis top marker
-        drawPixel(6, 30, WHITE);          // Y axis bottom marker
+      #if SSD1306_LCDHeight == 32
+        display.drawFastHLine(7, 31, 121, WHITE); // X axis
+        display.drawFastVLine(7, 16, 15, WHITE);  // Y axis
+        display.drawPixel(6, 16, WHITE);          // Y axis top marker
+        display.drawPixel(6, 30, WHITE);          // Y axis bottom marker
         // FIXME: Print scale labels
       #endif
-      #if SSD1306_LCDHeight = 64
-        drawFastHLine(7, 63, 121, WHITE); // X axis
-        drawFastVLine(7, 16, 47, WHITE);  // Y axis
-        drawPixel(6, 16, WHITE);          // Y axis top marker
-        drawPixel(6, 62, WHITE);          // Y axis bottom marker
+      #if SSD1306_LCDHeight == 64
+        display.drawFastHLine(7, 63, 121, WHITE); // X axis
+        display.drawFastVLine(7, 16, 47, WHITE);  // Y axis
+        display.drawPixel(6, 16, WHITE);          // Y axis top marker
+        display.drawPixel(6, 62, WHITE);          // Y axis bottom marker
         // FIXME: Print scale labels
       #endif
       
@@ -305,8 +312,8 @@ void loop()
       {
         yPosition = max(0, (uint16_t) round(variationBuffer[readingPosition] / variationScale )); // Scale and bound intensity reading 
         yPosition = min(47, yPosition) + 16;                                                      // Bound and shift down to the start of the graph
-        drawFastVLine(xPosition, yPosition, 47 - yPosition, WHITE);                               // Draw vertical bar
-        intensityPosition = intensityPosition++ % VG_WIDTH;                                       // Move to next reading, wrap over at end of buffer
+        display.drawFastVLine(xPosition, yPosition, 47 - yPosition, WHITE);                       // Draw vertical bar
+        readingPosition = readingPosition++ % VG_WIDTH;                                       // Move to next reading, wrap over at end of buffer
       }
     #endif
     display.display();                  // Show results
