@@ -50,9 +50,9 @@
 #define INTENSITY_OFFSET  0.0 // ** Intensity dc offset, default 0.0, should not need to change if resistor on U1 can be adjusted to keep value between 0.5V and 1.0V
 #define VARIATION_OFFSET -0.5 // ** Variation dc offset, default -0.5, may need to adjust to keep variation output the the range > 0.0 and < 10.0
 
-#define MOVING_AVERAGE_PTS 20 // ** Number of points to use for calculating the variation moving average, default 20, comment out to disable
+// #define MOVING_AVERAGE_PTS 20 // ** Number of points to use for calculating the variation moving average, default 20, comment out to disable
 
-#define MODE 2                // ** Select mode as described in features above, default 2, comment out if serial output not required (e.g. stand-alone device using LED/OLED for output)
+// #define MODE 2                // ** Select mode as described in features above, default 2, comment out if serial output not required (e.g. stand-alone device using LED/OLED for output)
 #ifdef MODE
   #define SERIAL_RATE 115200  // ** Set the serial communications rate (9600 or 115200 are good values to try), default 115200
 #endif
@@ -97,30 +97,38 @@
 
 // *************************************** End user modifiable defines ***************************************
 
-// *************************************** Begin private defines *********************************************
+#define DEBUG_SSM               // Turn on debugging tests
 
 #define SSM_VERSION "V1.2"      // SSM sketch version number
 #define SSM_DATE "02 Oct 2016"  // SSM sketch date
-#define WHITE 1                 // For OLED output
-#define BLACK 0                 // For OLED output
 
-#ifdef IG_WIDTH
-  #define IG_HEIGHT 13                    // Intensity graph height (pixels) - 1, default 13
-  #define IG_SCALE  (IG_HEIGHT / IG_MAX)  // Intensity graph scale
+// Note: Assign constants to variables so they may be changed on the fly by client software in mode 3
+int sampleCount,
+    numSamples = NUM_SAMPLES;
+
+float variationValue,
+      intensityValue,
+      variationOffset = VARIATION_OFFSET,
+      intensityOffset = INTENSITY_OFFSET;
+
+#ifdef CLOUD_DISCRIMINATE
+  float discriminateLow = DISCRIMINATE_LOW,
+        discriminateHigh = DISCRIMINATE_HIGH;
+
+  boolean cloudDiscriminate = CLOUD_DISCRIMINATE;
 #endif
 
-#ifdef VG_WIDTH
-  #if SSD1306_LCDHeight == 64
-    #define VG_HEIGHT 45                // Variation graph height (pixels) - 1, default 45px for 64px high display
-  #elif SSD1306_LCDHeight == 32
-    #define VG_HEIGHT 13                // Variation graph height (pixels) - 1, default 15px for 32px high display
-  #else
-    #error "Unsupported display size!"  // Couldn't find a supported display size
-  #endif
-  #define (VG_SCALE VG_HEIGHT / VG_MAX) // Variation graph scale
+#ifdef MOVING_AVERAGE_PTS
+  int movingAveragePts = MOVING_AVERAGE_PTS,
+      movingAverageCount = 0;
+      
+  float movingAverageAcc = 0,
+        movingAverage = 0;
 #endif
 
-// *************************************** End private defines ***********************************************
+#ifdef MODE
+  int mode = MODE;
+#endif
 
 #ifdef LED_OUTPUT
   include <LiquidCrystal.h>             // Library available in standard Arduino IDE
@@ -128,6 +136,10 @@
 #endif
 
 #ifdef OLED_OUTPUT
+  int xPosition,
+      yPosition,
+      readingPosition;
+  
   #include <SPI.h>              // Library available in standard Arduino IDE
   #include <Wire.h>             // Library available in standard Arduino IDE
   #include <Adafruit_GFX.h>     // https://github.com/adafruit/Adafruit-GFX-Library/archive/master.zip
@@ -138,15 +150,43 @@
   #ifdef HARDWARE_SPI
     Adafruit_SSD1306 display(OLED_DC, OLED_RESET, OLED_CS);                       // Initialise display object
   #endif
+  
+  #ifdef IG_WIDTH
+    int intensityBuffer[IG_WIDTH] = { 0 },  // Buffer to hold scaled and bounded intensity readings
+        intensityOldest = 0;                // Current position of oldest (left hand of graph) entry in intensity buffer
+
+    #define IG_HEIGHT 13                    // Intensity graph height (pixels) - 1, default 13
+    #define IG_SCALE  (IG_HEIGHT / IG_MAX)  // Intensity graph scale
+  #endif
+  
+  #ifdef VG_WIDTH
+    int variationBuffer[VG_WIDTH] = { 0 },  // Buffer to hold scaled and bounded variation readings
+        variationOldest = 0;                // Current position of oldest (left hand of graph) entry in variation buffer
+
+    #if SSD1306_LCDHEIGHT == 64
+      #define VG_HEIGHT 45                // Variation graph height (pixels) - 1, default 45px for 64px high display
+    #elif SSD1306_LCDHEIGHT == 32
+      #define VG_HEIGHT 13                // Variation graph height (pixels) - 1, default 15px for 32px high display
+    #else
+      #error "Unsupported display size!"  // Couldn't find a supported display size
+    #endif
+    #define VG_SCALE (VG_HEIGHT / VG_MAX) // Variation graph scale
+  #endif
 #endif
 
 void setup()
 {
+  #ifdef MODE
+    Serial.begin(115200); // Initialise serial communications first in case we need to debug anything
+  #endif
+  
   #ifdef LED_OUTPUT
     lcd.begin(16, 2); // Initialise LCD shield
   #endif
   
   #ifdef OLED_OUTPUT
+    delay(2000);  // Wait a bit for the display to initialise on first power up, otherwise we may get a blank screen instead of output
+    
     display.begin(SSD1306_SWITCHCAPVCC);               // Generate high voltage.
     #define SSM_LOGO_WIDTH  56                         // SSM splash screen logo width
     #define SSM_LOGO_HEIGHT 16                         // SSM splash screen logo height
@@ -163,6 +203,7 @@ void setup()
     display.drawBitmap(0, 0, SSM_LOGO, SSM_LOGO_WIDTH, SSM_LOGO_HEIGHT, 1); // Draw splash screen logo
     display.setTextSize(1);
     display.setTextColor(WHITE);
+    display.setTextWrap(false);
     display.setCursor(SSM_LOGO_WIDTH + 6, 0);                               // Draw splash screen sketch version
     display.print(SSM_VERSION);
     #if SSD1306_LCDWIDTH == 128
@@ -178,59 +219,12 @@ void setup()
     display.clearDisplay();                                                 // Clear display
     display.display();                                                      // Show cleared display
   #endif
-  
-  #ifdef MODE
-    Serial.begin(115200); // Initialise serial communications
-  #endif
 }
  
 void loop()
 {
-  // Note: Assign constants to variables so they may be changed on the fly by client software in mode 3
-  int sampleCount,
-      numSamples = NUM_SAMPLES;
-  
-  float variationValue,
-        intensityValue,
-        variationOffset = VARIATION_OFFSET,
-        intensityOffset = INTENSITY_OFFSET;
-        
-  #ifdef CLOUD_DISCRIMINATE
-    float discriminateLow = DISCRIMINATE_LOW,
-          discriminateHigh = DISCRIMINATE_HIGH;
-  
-    boolean cloudDiscriminate = CLOUD_DISCRIMINATE;
-  #endif
-  
-  #ifdef MOVING_AVERAGE_PTS
-    int movingAveragePts = MOVING_AVERAGE_PTS,
-        movingAverageCount = 0;
-        
-    float movingAverageAcc = 0,
-          movingAverage = 0;
-  #endif
-  
-  #ifdef MODE
-    mode = MODE;
-  #endif
-  
-  #ifdef OLED_OUTPUT
-    int xPosition,
-        yPosition,
-        readingPosition;
-    
-    #ifdef IG_WIDTH
-      int intensityBuffer[IG_WIDTH] = { 0 },  // Buffer to hold scaled and bounded intensity readings
-          intensityOldest = 0;                // Current position of oldest (left hand of graph) entry in intensity buffer
-    #endif
-    
-    #ifdef VG_WIDTH
-      int variationBuffer[VG_WIDTH] = { 0 },  // Buffer to hold scaled and bounded variation readings
-          variationOldest = 0;                // Current position of oldest (left hand of graph) entry in variation buffer
-    #endif
-  #endif
-  
   variationValue = intensityValue = 0;                           // Reset variation and intensity samples
+
   for (sampleCount = 0; sampleCount < numSamples; sampleCount++) // Collect samples from the SSM
   {
     intensityValue = intensityValue + (analogRead(ADC1) - 511.) * 2.5 / 511.;     // Accumulate average solar intensity sample
@@ -285,12 +279,12 @@ void loop()
     
     #ifdef IG_WIDTH
       intensityBuffer[intensityOldest] = min(IG_HEIGHT, max(0, (int) round(intensityValue * IG_SCALE)));  // Buffer scaled and bounded intensity reading
-      intensityOldest = intensityOldest++ % IG_WIDTH;                                                     // Increment left hand of graph, wrap over at end of buffer
-      
+      intensityOldest = (intensityOldest + 1) % IG_WIDTH;                                                 // Increment left hand of graph, wrap over at end of buffer
+        
       // Draw intensity graph axes
-      display.drawFastHLine(82, IG_HEIGHT + 1, IG_WIDTH + 1, WHITE);  // X axis
-      display.drawFastVLine(82, 0, IG_HEIGHT + 1, WHITE);             // Y axis
-      display.drawFastHLine(80, (int) round(IG_SCALE), 2, WHITE);     // Y axis "1" marker
+      display.drawFastHLine(82, IG_HEIGHT, IG_WIDTH + 1, WHITE);              // X axis
+      display.drawFastVLine(82, 0, IG_HEIGHT, WHITE);                         // Y axis
+      display.drawFastHLine(80, IG_HEIGHT - (int) round(IG_SCALE), 2, WHITE); // Y axis "1" marker
       
       if (intensityValue > (IG_MAX))
       {
@@ -305,27 +299,39 @@ void loop()
       else
       {
         readingPosition = intensityOldest;                              // Start with the oldest intensity reading
-        for (xPosition = 83; xPosition < (82 + IG_WIDTH); xPosition++); // Plot intensity readings from left to right of graph
+        for (xPosition = 83; xPosition < (82 + IG_WIDTH); xPosition++)  // Plot intensity readings from left to right of graph
         {
           #ifdef SCATTER_PLOT
-            display.drawPixel(xPosition, IG_HEIGHT - intensityBuffer[readingPosition], WHITE);  // Draw point
+            display.drawPixel(xPosition, IG_HEIGHT - intensityBuffer[readingPosition], WHITE);                                        // Draw point
           #else
             display.drawFastVLine(xPosition, IG_HEIGHT - intensityBuffer[readingPosition], intensityBuffer[readingPosition], WHITE);  // Draw vertical bar
           #endif
-          readingPosition = readingPosition++ % IG_WIDTH;                                                                             // Move to next reading, wrap over at end of buffer
+          readingPosition = (readingPosition + 1) % IG_WIDTH;                                                                         // Move to next reading, wrap over at end of buffer
         }
       }
+      
+      #ifdef DEBUG_SSM // Test Intensity graph plot area limits
+        display.drawLine(83, IG_HEIGHT - min(IG_HEIGHT, max(0, (int) round(IG_MAX * IG_SCALE))), (82 + IG_WIDTH), min(IG_HEIGHT, max(0, (int) round(IG_MAX * IG_SCALE))), INVERSE);  // Top left -> bottom right
+        Serial.print("IG Top Left X: ");
+        Serial.println(83);
+        Serial.print("IG Top Left Y: ");
+        Serial.println(IG_HEIGHT - min(IG_HEIGHT, max(0, (int) round(IG_MAX * IG_SCALE))));
+        Serial.print("IG Bottom Right X: ");
+        Serial.println((82 + IG_WIDTH));
+        Serial.print("IG Bottom Right Y: ");
+        Serial.println(min(IG_HEIGHT, max(0, (int) round(IG_MAX * IG_SCALE))));
+      #endif
     #endif
     
     #ifdef VG_WIDTH
       variationBuffer[variationOldest] = min(VG_HEIGHT, max(0, (int) round(variationValue * VG_SCALE)));  // Buffer scaled and bounded variation reading
-      variationOldest = variationOldest++ % VG_WIDTH;                                                     // Increment left hand of graph, wrap over at end of buffer
+      variationOldest = (variationOldest + 1) % VG_WIDTH;                                                     // Increment left hand of graph, wrap over at end of buffer
       
       // Draw variation graph axes
       display.drawFastHLine(3, VG_HEIGHT + 18, VG_WIDTH + 1, WHITE); // X axis
       display.drawFastVLine(3, 17, VG_HEIGHT + 1, WHITE);            // Y axis
       #ifdef MOVING_AVERAGE_PTS
-        if movingAverageCount = movingAveragePts)
+        if (movingAverageCount = movingAveragePts)
         {
           display.drawFastHLine(0, min(VG_HEIGHT, max(0, (int) round(movingAverage * VG_SCALE))) + 17, 2, WHITE); // Moving average marker
         }
@@ -333,16 +339,30 @@ void loop()
       
       // Plot variation graph
       readingPosition = variationOldest;                            // Start with the oldest variation reading
-      for (xPosition = 3; xPosition < (2 + VG_WIDTH); xPosition++); // Plot variation readings from left to right of graph
+      for (xPosition = 3; xPosition < (2 + VG_WIDTH); xPosition++)  // Plot variation readings from left to right of graph
       {
         #ifdef SCATTER_PLOT
           display.drawPixel(xPosition, VG_HEIGHT - variationBuffer[readingPosition] + 17, WHITE); // Draw point
         #else
           display.drawFastVLine(xPosition, VG_HEIGHT - variationBuffer[readingPosition] + 17, variationBuffer[readingPosition], WHITE); // Draw vertical bar
         #endif
-        readingPosition = readingPosition++ % VG_WIDTH;                                                                                 // Move to next reading, wrap over at end of buffer
+        readingPosition = (readingPosition + 1) % VG_WIDTH;                                                                                 // Move to next reading, wrap over at end of buffer
       }
     #endif
+    
+    #ifdef DEBUG_SSM // Test Variation graph plot area limits
+      display.drawLine(3
+      , VG_HEIGHT - min(VG_HEIGHT, max(0, (int) round(VG_MAX * VG_SCALE))) + 17, (2 + VG_WIDTH), min(VG_HEIGHT, max(0, (int) round(VG_MAX * VG_SCALE))) + 17, INVERSE);  // Top left -> bottom right
+      Serial.print("VG Top Left X: ");
+      Serial.println(3);
+      Serial.print("VG Top Left Y: ");
+      Serial.println(VG_HEIGHT - min(VG_HEIGHT, max(0, (int) round(VG_MAX * VG_SCALE))) + 17);
+      Serial.print("VG Bottom Right X: ");
+      Serial.println((2 + VG_WIDTH));
+      Serial.print("VG Bottom Right Y: ");
+      Serial.println(max(0, (int) round(VG_MAX * VG_SCALE)) + 17);
+    #endif
+
     display.display();  // Show results
   #endif
   
