@@ -43,14 +43,14 @@
 
 // #define CLOUD_DISCRIMINATE true  // ** Discriminate for clouds if true, default true, comment out to disable
 #ifdef CLOUD_DISCRIMINATE
-  #define DISCRIMINATE_LOW     0.5  // ** Set variation value to zero if intensity is too low, default 0.5
-  #define DISCRIMINATE_HIGH   10.0  // ** Set variation value to zero if variation is too high, default 10
+  #define DISCRIMINATE_LOW     0.5  // ** Set variation value to zero if ***intensity*** is too low, default 0.5
+  #define DISCRIMINATE_HIGH   10.0  // ** Set variation value to zero if ***variation*** is too high, default 10
 #endif
 
 #define INTENSITY_OFFSET  0.0 // ** Intensity dc offset, default 0.0, should not need to change if resistor on U1 can be adjusted to keep value between 0.5V and 1.0V
 #define VARIATION_OFFSET -0.5 // ** Variation dc offset, default -0.5, may need to adjust to keep variation output the the range > 0.0 and < 10.0
 
-// #define MOVING_AVERAGE_PTS 20 // ** Number of points to use for calculating the variation moving average, default 20, comment out to disable
+#define MOVING_AVERAGE_PTS 20 // ** Number of points to use for calculating the variation moving average, default 20, comment out to disable
 
 // #define MODE 2                // ** Select mode as described in features above, default 2, comment out if serial output not required (e.g. stand-alone device using LED/OLED for output)
 #ifdef MODE
@@ -75,7 +75,7 @@
     #define OLED_MOSI   9     // ** For software SPI only, define digital pin wired to OLED MOSI
     #define OLED_CLK   10     // ** For software SPI only, define digital pin wired to OLED CLK (or SLCK)
   #endif
-  #define OLED_RESET   -1     // ** For software and hardware SPI, define digital pin wired to OLED RST (not available on my OLED module!)
+  #define OLED_RESET   -1     // ** For software and hardware SPI, define digital pin wired to OLED RST (not available on my OLED module, -1 ignores)
   #define OLED_DC      10     // ** For software and hardware SPI, define digital pin wired to OLED DC (or D/C)
   #define OLED_CS      21     // ** For software and hardware SPI, define digital pin wired to OLED CS (21 is A3 on Pro Micro!)
   // Note that SCLK (Pro Micro pin 15) and MOSI (Pro Micro pin 16) are specific pins in hardware SPI mode so don't need defining
@@ -351,8 +351,7 @@ void loop()
     #endif
     
     #ifdef DEBUG_SSM // Test Variation graph plot area limits
-      display.drawLine(3
-      , VG_HEIGHT - min(VG_HEIGHT, max(0, (int) round(VG_MAX * VG_SCALE))) + 17, (2 + VG_WIDTH), min(VG_HEIGHT, max(0, (int) round(VG_MAX * VG_SCALE))) + 17, INVERSE);  // Top left -> bottom right
+      display.drawLine(3, VG_HEIGHT - min(VG_HEIGHT, max(0, (int) round(VG_MAX * VG_SCALE))) + 17, (2 + VG_WIDTH), min(VG_HEIGHT, max(0, (int) round(VG_MAX * VG_SCALE))) + 17, INVERSE);  // Top left -> bottom right
       Serial.print("VG Top Left X: ");
       Serial.println(3);
       Serial.print("VG Top Left Y: ");
