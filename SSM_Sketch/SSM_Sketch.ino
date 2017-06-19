@@ -52,14 +52,14 @@
 
 #define MOVING_AVERAGE_PTS 20 // ** Number of points to use for calculating the variation moving average, default 20, comment out to disable
 
-// #define MODE 2                // ** Select mode as described in features above, default 2, comment out if serial output not required (e.g. stand-alone device using LED/OLED for output)
+#define MODE 2                // ** Select mode as described in features above, default 2, comment out if serial output not required (e.g. stand-alone device using LED/OLED for output)
 #ifdef MODE
   #define SERIAL_RATE 115200  // ** Set the serial communications rate (9600 or 115200 are good values to try), default 115200
 #endif
 
 // #define LED_OUTPUT         // ** Define this to enable LED shield support, otherwise comment it out
 
-#define OLED_OUTPUT           // ** Define this to enable OLED module support, otherwise comment it out
+// #define OLED_OUTPUT           // ** Define this to enable OLED module support, otherwise comment it out
                               //    N.B. You must edit Adafruit_SSD1306.h at comment "SSD1306 Displays" to choose a display size
                               //    SSD1306_LCDWIDTH and SSD1306_LCDHeight will then be defined by the .h with display size
                               //    Current W x H options are: 128 x 64 | 128 x 32 | 96 x 16
@@ -97,7 +97,7 @@
 
 // *************************************** End user modifiable defines ***************************************
 
-#define DEBUG_SSM               // Turn on debugging tests
+// #define DEBUG_SSM               // Turn on debugging tests
 
 #define SSM_VERSION "V1.2"      // SSM sketch version number
 #define SSM_DATE "02 Oct 2016"  // SSM sketch date
