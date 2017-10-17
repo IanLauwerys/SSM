@@ -47,8 +47,8 @@
   #define DISCRIMINATE_HIGH   10.0  // ** Set variation value to zero if ***variation*** is too high, default 10
 #endif
 
-#define INTENSITY_OFFSET  0.0 // ** Intensity dc offset, default 0.0, should not need to change if resistor on U1 can be adjusted to keep value between 0.5V and 1.0V
-#define VARIATION_OFFSET -0.5 // ** Variation dc offset, default -0.5, may need to adjust to keep variation output the the range > 0.0 and < 10.0
+#define INTENSITY_OFFSET  0.0  // ** Intensity dc offset, default 0.0, should not need to change if resistor on U1 can be adjusted to keep value between 0.5V and 1.0V
+#define VARIATION_OFFSET -0.05 // ** Variation dc offset, default -0.05, may need to adjust to keep variation output the the range > 0.0 and < 10.0
 
 #define MOVING_AVERAGE_PTS 20 // ** Number of points to use for calculating the variation moving average, default 20, comment out to disable
 
@@ -59,7 +59,11 @@
 
 // #define LED_OUTPUT         // ** Define this to enable LED shield support, otherwise comment it out
 
+<<<<<<< Updated upstream
 // #define OLED_OUTPUT           // ** Define this to enable OLED module support, otherwise comment it out
+=======
+// #define OLED_OUTPUT        // ** Define this to enable OLED module support, otherwise comment it out
+>>>>>>> Stashed changes
                               //    N.B. You must edit Adafruit_SSD1306.h at comment "SSD1306 Displays" to choose a display size
                               //    SSD1306_LCDWIDTH and SSD1306_LCDHeight will then be defined by the .h with display size
                               //    Current W x H options are: 128 x 64 | 128 x 32 | 96 x 16
