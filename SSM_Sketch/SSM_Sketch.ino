@@ -58,12 +58,7 @@
 #endif
 
 // #define LED_OUTPUT         // ** Define this to enable LED shield support, otherwise comment it out
-
-<<<<<<< Updated upstream
-// #define OLED_OUTPUT           // ** Define this to enable OLED module support, otherwise comment it out
-=======
 // #define OLED_OUTPUT        // ** Define this to enable OLED module support, otherwise comment it out
->>>>>>> Stashed changes
                               //    N.B. You must edit Adafruit_SSD1306.h at comment "SSD1306 Displays" to choose a display size
                               //    SSD1306_LCDWIDTH and SSD1306_LCDHeight will then be defined by the .h with display size
                               //    Current W x H options are: 128 x 64 | 128 x 32 | 96 x 16
